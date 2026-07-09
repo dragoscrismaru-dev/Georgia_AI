@@ -47,6 +47,28 @@ const memory = new Map();
 const queues = new Map();
 const players = new Map();
 
+// Help Command Text
+const HELP_MESSAGE = `**🛠️ Available Commands**
+
+**AI Commands:**
+- \`${PREFIX}ask <question>\` → Ask the AI anything
+- Mention the bot + message → Same as -ask
+
+**Music Commands:**
+- \`${PREFIX}play <song name or url>\` → Play a song from YouTube
+- \`${PREFIX}skip\` → Skip current song
+- \`${PREFIX}queue\` → Show current queue
+- \`${PREFIX}pause\` → Pause playback
+- \`${PREFIX}resume\` → Resume playback
+- \`\( {PREFIX}stop\` or \` \){PREFIX}leave\` → Stop music and leave VC
+- \`${PREFIX}clear\` → Clear the queue
+
+**Utility:**
+- \`${PREFIX}help\` → Show this help message
+
+**Moderation:** Racist/offensive words are automatically deleted and logged.
+`;
+
 // Register Slash Command
 async function registerCommands() {
     const commands = [{
@@ -92,7 +114,7 @@ function containsBannedWord(text) {
     return BANNED_WORDS.some(word => lower.includes(word));
 }
 
-// Music: Play Song
+// Play Song Function
 async function playSong(guild) {
     const queue = queues.get(guild.id);
     if (!queue || queue.length === 0) return;
@@ -126,7 +148,6 @@ async function playSong(guild) {
     }
 
     player.play(resource);
-    console.log(`🎵 Now playing: ${song.title}`);
 }
 
 // Main Message Handler
@@ -150,7 +171,15 @@ client.on(Events.MessageCreate, async message => {
     const args = content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // === AI Commands ===
+    const queue = queues.get(message.guild.id) || [];
+    queues.set(message.guild.id, queue);
+
+    // Help Command
+    if (command === "help") {
+        return message.reply(HELP_MESSAGE);
+    }
+
+    // AI Commands
     if (command === "ask" || message.mentions.has(client.user)) {
         const question = args.join(" ") || content.replace(`<@${client.user.id}>`, "").trim();
         if (!question) return;
@@ -159,10 +188,7 @@ client.on(Events.MessageCreate, async message => {
         return message.reply(reply);
     }
 
-    // === Music Commands ===
-    const queue = queues.get(message.guild.id) || [];
-    queues.set(message.guild.id, queue);
-
+    // Music Commands
     if (command === "play") {
         const search = args.join(" ");
         if (!search) return message.reply("❌ Please provide a song name or URL!");
@@ -174,12 +200,10 @@ client.on(Events.MessageCreate, async message => {
             const result = await play.search(search, { limit: 1 });
             const song = result[0];
 
-            queue.push({ title: song.title, url: song.url, duration: song.duration });
-            message.reply(`✅ Added to queue: **${song.title}**`);
+            queue.push({ title: song.title, url: song.url });
+            message.reply(`✅ **${song.title}** added to queue!`);
 
-            if (queue.length === 1) {
-                playSong(message.guild);
-            }
+            if (queue.length === 1) playSong(message.guild);
         } catch (e) {
             message.reply("❌ Could not find that song.");
         }
@@ -192,7 +216,7 @@ client.on(Events.MessageCreate, async message => {
     }
 
     else if (command === "queue") {
-        if (queue.length === 0) return message.reply("Queue is empty.");
+        if (queue.length === 0) return message.reply("🎵 Queue is empty.");
         const q = queue.map((s, i) => `${i+1}. ${s.title}`).join("\n");
         message.reply(`**Current Queue:**\n${q}`);
     }
@@ -214,7 +238,7 @@ client.on(Events.MessageCreate, async message => {
         if (player) player.stop();
         queues.delete(message.guild.id);
         players.delete(message.guild.id);
-        message.reply("🛑 Stopped music and left the channel.");
+        message.reply("🛑 Stopped music and left the voice channel.");
     }
 
     else if (command === "clear") {
@@ -223,7 +247,7 @@ client.on(Events.MessageCreate, async message => {
     }
 });
 
-// Slash Command
+// Slash Command Handler
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName === "ask") {
