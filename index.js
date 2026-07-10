@@ -22,13 +22,6 @@ const { Player } = require("discord-player");
 const { DefaultExtractors } = require("@discord-player/extractor");
 
 
-const client = new Client({
-
-(async () => {
-    await player.extractors.loadMulti(DefaultExtractors);
-})();
-
-
 process.env.FFMPEG_PATH = ffmpeg;
 const PREFIX = "-";
 const OWNER_ID = "1408109679782924308";
@@ -124,6 +117,7 @@ const client = new Client({
     ]
 
 });
+
 const player = new Player(client);
 
 (async () => {
