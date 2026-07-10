@@ -18,11 +18,6 @@ const {
 
 const Groq = require("groq-sdk");
 const play = require("play-dl");
-play.setToken({
-    youtube: {
-        cookie: process.env.YOUTUBE_COOKIE
-    }
-});
 const ffmpeg = require("ffmpeg-static");
 
 process.env.FFMPEG_PATH = ffmpeg;
