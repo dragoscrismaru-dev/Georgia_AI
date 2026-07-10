@@ -272,6 +272,31 @@ async function sendLongMessage(channel, text) {
 
 }
 
+// ============================
+// MUSIC DEBUG COMMAND
+// ============================
+
+if (lower === PREFIX + "musicdebug") {
+
+    const voice =
+    message.guild.members.me.voice.channel;
+
+
+    const player =
+    players.get(message.guild.id);
+
+
+    return message.reply(
+        [
+            "🎵 Music Debug",
+            `Voice Channel: ${voice ? voice.name : "Not connected"}`,
+            `Player: ${player ? "Created" : "No player"}`,
+            `Guild ID: ${message.guild.id}`,
+            `FFmpeg: ${process.env.FFMPEG_PATH ? "Loaded" : "Missing"}`
+        ].join("\n")
+    );
+
+}
 // ================================
 // AI FUNCTION
 // ================================
