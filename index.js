@@ -352,7 +352,9 @@ async function askAI(userId, prompt) {
     return reply;
 
 
-}// ================================
+}
+
+ // ================================
 // MESSAGE HANDLER
 // ================================
 
@@ -365,6 +367,59 @@ client.on(Events.MessageCreate, async message => {
     const content = message.content.trim();
 
     const lower = content.toLowerCase();
+
+// ============================
+// JARVIS HELP REQUEST
+// ============================
+
+if (
+    lower.includes("jarvis") &&
+    (
+        lower.includes("help") ||
+        lower.includes("commands") ||
+        lower.includes("command list")
+    )
+) {
+
+    const embed = new EmbedBuilder()
+
+    .setColor("Blue")
+
+    .setTitle("🤖 Jarvis Commands")
+
+    .setDescription(
+        `Prefix: \`${PREFIX}\`\nHere are all my commands.`
+    )
+
+    .addFields(
+
+        {
+            name: "📌 General Commands",
+            value: COMMANDS.general.join("\n")
+        },
+
+        {
+            name: "🎵 Music Commands",
+            value: COMMANDS.music.join("\n")
+        },
+
+        {
+            name: "👑 Owner Commands",
+            value: COMMANDS.owner.join("\n")
+        }
+
+    )
+
+    .setFooter({
+        text: "Georgia State Roleplay • Jarvis AI"
+    });
+
+
+    return message.channel.send({
+        embeds: [embed]
+    });
+
+}
 
 
 
