@@ -74,11 +74,13 @@ const COMMANDS = {
     ],
 
     music: [
-        "`-play <song>` - Play music",
-        "`-skip` - Skip song",
-        "`-stop` - Stop music",
-        "`-leave` - Leave voice channel"
-    ],
+    "`-play <song>` - Play music",
+    "`-addtoqueue <song>` - Add a song to queue",
+    "`-queue` - Show current queue",
+    "`-skip` - Skip song",
+    "`-stop` - Stop music",
+    "`-leave` - Leave voice channel"
+],
 
     owner: [
         "`-restart` - Restart Jarvis",
@@ -855,6 +857,80 @@ client.on(Events.MessageCreate, async message => {
     args[0].toLowerCase();
 
 
+// ============================
+// ADD TO QUEUE
+// ============================
+
+if (command === PREFIX + "addtoqueue") {
+
+    const song = args.slice(1).join(" ");
+
+    if (!song) {
+        return message.reply(
+            "❌ Provide a song name."
+        );
+    }
+
+
+    let queue =
+    queues.get(message.guild.id) || [];
+
+
+    queue.push(song);
+
+
+    queues.set(
+        message.guild.id,
+        queue
+    );
+
+
+    return message.reply(
+        `✅ Added to queue: **${song}**`
+    );
+
+}
+
+
+// ============================
+// SHOW QUEUE
+// ============================
+
+if (command === PREFIX + "queue") {
+
+    const queue =
+    queues.get(message.guild.id);
+
+
+    if (!queue || queue.length === 0) {
+
+        return message.reply(
+            "🎵 The queue is empty."
+        );
+
+    }
+
+
+    const list =
+    queue.map(
+        (song, index) =>
+        `${index + 1}. ${song}`
+    )
+    .join("\n");
+
+
+    return message.channel.send({
+
+        embeds: [
+            new EmbedBuilder()
+            .setColor("Blue")
+            .setTitle("🎵 Music Queue")
+            .setDescription(list)
+        ]
+
+    });
+
+}
 
     // ============================
     // PLAY
