@@ -117,3 +117,208 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+// ================================
+// MESSAGE HANDLER
+// ================================
+
+client.on(Events.MessageCreate, async message => {
+
+    if (message.author.bot) return;
+
+    const content = message.content.trim();
+    const lower = content.toLowerCase();
+
+    // ============================
+    // BAD WORD FILTER
+    // ============================
+
+    if (BANNED_WORDS.some(word => lower.includes(word))) {
+
+        await message.delete().catch(() => {});
+
+        return message.channel.send({
+            content: `${message.author}, that word is not allowed.`
+        });
+
+    }
+
+    // ============================
+    // HELP
+    // ============================
+
+    if (lower === PREFIX + "help") {
+
+        const embed = new EmbedBuilder()
+
+            .setColor("Blue")
+
+            .setTitle("🤖 Jarvis Help")
+
+            .setDescription("Available Commands")
+
+            .addFields(
+
+                {
+                    name: "AI",
+                    value:
+                        "`jarvis <question>`\n" +
+                        "`@Jarvis <question>`"
+                },
+
+                {
+                    name: "General",
+                    value:
+                        "`-help`\n" +
+                        "`-ping`\n" +
+                        "`-about`\n" +
+                        "`-server`"
+                },
+
+                {
+                    name: "Music",
+                    value:
+                        "`-play`\n" +
+                        "`-skip`\n" +
+                        "`-stop`\n" +
+                        "`-leave`"
+                },
+
+                {
+                    name: "Owner",
+                    value:
+                        "`-restart`\n" +
+                        "`-shutdown`\n" +
+                        "`-say`"
+                }
+
+            )
+
+            .setFooter({
+                text: "Georgia State Roleplay"
+            });
+
+        return message.channel.send({
+            embeds: [embed]
+        });
+
+    }
+
+    // ============================
+    // PING
+    // ============================
+
+    if (lower === PREFIX + "ping") {
+
+        return message.reply(
+            `🏓 Pong! ${client.ws.ping}ms`
+        );
+
+    }
+
+    // ============================
+    // ABOUT
+    // ============================
+
+    if (lower === PREFIX + "about") {
+
+        return message.reply(
+            "🤖 I am Jarvis, the official AI assistant for Georgia State Roleplay."
+        );
+
+    }
+
+    // ============================
+    // SERVER
+    // ============================
+
+    if (lower === PREFIX + "server") {
+
+        return sendLongMessage(
+            message.channel,
+            SERVER_DESCRIPTION
+        );
+
+    }
+
+    // ============================
+    // OWNER CHECK
+    // ============================
+
+    if (lower.startsWith("-restart")) {
+
+        if (!isOwner(message.author.id))
+            return message.reply("⛔ Owner only.");
+
+        await message.reply("🔄 Restarting...");
+
+        process.exit(0);
+
+    }
+
+    if (lower.startsWith("-shutdown")) {
+
+        if (!isOwner(message.author.id))
+            return message.reply("⛔ Owner only.");
+
+        await message.reply("🛑 Shutting down.");
+
+        process.exit(0);
+
+    }
+
+    if (lower.startsWith("-say ")) {
+
+        if (!isOwner(message.author.id))
+            return message.reply("⛔ Owner only.");
+
+        const msg = content.slice(5);
+
+        await message.delete().catch(() => {});
+
+        return message.channel.send(msg);
+
+    }
+
+    // ============================
+    // AI
+    // ============================
+
+    if (
+        lower.includes("jarvis") ||
+        message.mentions.has(client.user)
+    ) {
+
+        const question = content
+            .replace(/jarvis/gi, "")
+            .replace(/<@!?[0-9]+>/g, "")
+            .trim();
+
+        if (!question.length) return;
+
+        await message.channel.sendTyping();
+
+        try {
+
+            const reply = await askAI(
+                message.author.id,
+                question
+            );
+
+            await sendLongMessage(
+                message.channel,
+                reply
+            );
+
+        } catch (err) {
+
+            console.error(err);
+
+            message.reply(
+                "⚠️ The AI is currently unavailable."
+            );
+
+        }
+
+    }
+
+});
