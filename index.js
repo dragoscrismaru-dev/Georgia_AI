@@ -20,6 +20,7 @@ const Groq = require("groq-sdk");
 const play = require("play-dl");
 const ffmpeg = require("ffmpeg-static");
 
+process.env.FFMPEG_PATH = ffmpeg;
 const PREFIX = "-";
 const OWNER_ID = "1408109679782924308";
 
