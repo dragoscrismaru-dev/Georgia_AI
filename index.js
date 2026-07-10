@@ -13,12 +13,6 @@ const {
     Player
 } = require("discord-player");
 
-
-const {
-    DefaultExtractors
-} = require("@discord-player/extractor");
-
-
 const Groq = require("groq-sdk");
 
 const ffmpeg = require("ffmpeg-static");
@@ -887,25 +881,17 @@ async message => {
         try {
 
 
-            const { track } =
-            await player.play(
+         const result = await player.play(
+    voiceChannel,
+    query,
+    {
+        nodeOptions: {
+            metadata: message.channel
+        }
+    }
+);
 
-                voiceChannel,
-
-                query,
-
-                {
-
-                    nodeOptions: {
-
-                        metadata:
-                        message.channel
-
-                    }
-
-                }
-
-            );
+const track = result.track;
 
 
 
@@ -1055,10 +1041,9 @@ async message => {
 
 
 
-        if (
-            !queue ||
-            queue.tracks.size === 0
-        ) {
+       if (!queue || !queue.currentTrack) {
+    return message.reply("🎵 Queue is empty.");
+}
 
 
             return message.reply(
