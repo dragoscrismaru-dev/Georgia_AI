@@ -18,7 +18,14 @@ const {
 
 const Groq = require("groq-sdk");
 const ffmpeg = require("ffmpeg-static");
+const { Player } = require("discord-player");
+const { DefaultExtractors } = require("@discord-player/extractor");
 
+const player = new Player(client);
+
+(async () => {
+    await player.extractors.loadMulti(DefaultExtractors);
+})();
 process.env.FFMPEG_PATH = ffmpeg;
 const PREFIX = "-";
 const OWNER_ID = "1408109679782924308";
@@ -825,419 +832,176 @@ if (
 
 
 
-});// ================================
+});
+
+// ================================
 // MUSIC SYSTEM
 // ================================
 
-
-// PLAY COMMAND
-// ================================
-
-process.env.FFMPEG_PATH = ffmpeg;
-
 client.on(Events.MessageCreate, async message => {
-
 
     if (message.author.bot) return;
 
-
-    const args =
-    message.content
-    .trim()
-    .split(" ");
+    const args = message.content.trim().split(" ");
+    const command = args[0].toLowerCase();
 
 
-    const command =
-    args[0].toLowerCase();
-
-
-// ============================
-// ADD TO QUEUE
-// ============================
-
-if (command === PREFIX + "addtoqueue") {
-
-    const song = args.slice(1).join(" ");
-
-    if (!song) {
-        return message.reply(
-            "❌ Provide a song name."
-        );
-    }
-
-
-    let queue =
-    queues.get(message.guild.id) || [];
-
-
-    queue.push(song);
-
-
-    queues.set(
-        message.guild.id,
-        queue
-    );
-
-
-    return message.reply(
-        `✅ Added to queue: **${song}**`
-    );
-
-}
-
-
-// ============================
-// SHOW QUEUE
-// ============================
-
-if (command === PREFIX + "queue") {
-
-    const queue =
-    queues.get(message.guild.id);
-
-
-    if (!queue || queue.length === 0) {
-
-        return message.reply(
-            "🎵 The queue is empty."
-        );
-
-    }
-
-
-    const list =
-    queue.map(
-        (song, index) =>
-        `${index + 1}. ${song}`
-    )
-    .join("\n");
-
-
-    return message.channel.send({
-
-        embeds: [
-            new EmbedBuilder()
-            .setColor("Blue")
-            .setTitle("🎵 Music Queue")
-            .setDescription(list)
-        ]
-
-    });
-
-}
-
-    // ============================
     // PLAY
-    // ============================
-
     if (command === PREFIX + "play") {
-console.log("PLAY COMMAND USED");
+
+        const query = args.slice(1).join(" ");
+
+        if (!query) {
+            return message.reply(
+                "❌ Give me a song name."
+            );
+        }
 
 
-        const voiceChannel =
-        message.member.voice.channel;
-
-
+        const voiceChannel = message.member.voice.channel;
 
         if (!voiceChannel) {
-
             return message.reply(
                 "🎤 Join a voice channel first."
             );
-
         }
-
-
-
-        const query =
-        args.slice(1).join(" ");
-
-
-
-        if (!query) {
-
-            return message.reply(
-                "❌ Please provide a song name."
-            );
-
-        }
-
 
 
         try {
 
-
-            const connection =
-            joinVoiceChannel({
-
-                channelId:
-                voiceChannel.id,
-
-                guildId:
-                message.guild.id,
-
-                adapterCreator:
-                message.guild.voiceAdapterCreator
-
-            });
-
-
-console.log("CREATING PLAYER");
-            const player =
-            createAudioPlayer({
-
-                behaviors: {
-
-                    noSubscriber:
-                    NoSubscriberBehavior.Play
-
-                }
-
-            });
-
-
-
-            players.set(
-
-                message.guild.id,
-
-                player
-
-            );
-console.log("PLAYER SAVED");
-
-
-
-            const search =
-            await play.search(
-
+            const { track } = await player.play(
+                voiceChannel,
                 query,
-
                 {
-
-                    limit: 1
-
+                    nodeOptions: {
+                        metadata: message.channel
+                    }
                 }
-
             );
-
-
-console.log("SEARCH RESULTS:", search.length);
-
-            if (!search.length) {
-
-
-                return message.reply(
-                    "❌ Song not found."
-                );
-
-
-            }
-
-
-
-            
-const stream = await play.stream(search[0].url, {
-    discordPlayerCompatibility: true
-});
-
-
-
-            const resource = createAudioResource(
-    stream.stream,
-    {
-        inputType: stream.type,
-        inlineVolume: true
-    }
-);
-
-resource.volume.setVolume(0.5);
-
-
-
-            player.play(resource);
-
-
-
-            connection.subscribe(player);
-
 
 
             message.channel.send(
-
-                `🎵 Now playing: **${search[0].title}**`
-
+                `🎵 Now playing: **${track.title}**`
             );
 
 
+        } catch (error) {
 
-            player.on(
+            console.error("MUSIC ERROR:", error);
 
-                AudioPlayerStatus.Idle,
-
-                () => {
-
-                    connection.destroy();
-
-                }
-
+            message.reply(
+                "⚠️ Could not play that song."
             );
 
-
-
-        } catch(error) {
-
-    console.error("MUSIC ERROR:", error);
-
-    message.reply(
-        `⚠️ Could not play that song.\n\`${error.message}\``
-    );
-
-}
-
+        }
 
     }
 
 
 
-    // ============================
-    // SKIP
-    // ============================
+    // QUEUE
+    if (command === PREFIX + "queue") {
 
-    if (command === PREFIX + "skip") {
-
-
-        const player =
-        players.get(
-            message.guild.id
-        );
+        const queue =
+        player.nodes.get(message.guild.id);
 
 
-
-        if (!player) {
-
+        if (!queue || !queue.tracks.size) {
 
             return message.reply(
-                "❌ Nothing is playing."
+                "🎵 Queue is empty."
             );
-
 
         }
 
 
+        const songs =
+        queue.tracks.toArray()
+        .map(
+            (song, i) =>
+            `${i + 1}. ${song.title}`
+        )
+        .join("\n");
 
-        player.stop();
+
+        message.channel.send(
+            `🎵 **Queue**\n${songs}`
+        );
+
+    }
 
 
 
-        return message.reply(
+    // SKIP
+    if (command === PREFIX + "skip") {
+
+        const queue =
+        player.nodes.get(message.guild.id);
+
+
+        if (!queue) {
+
+            return message.reply(
+                "❌ Nothing playing."
+            );
+
+        }
+
+
+        queue.node.skip();
+
+
+        message.reply(
             "⏭️ Skipped."
         );
 
-
     }
 
 
 
-    // ============================
     // STOP
-    // ============================
-
     if (command === PREFIX + "stop") {
 
-
-        const player =
-        players.get(
-            message.guild.id
-        );
+        const queue =
+        player.nodes.get(message.guild.id);
 
 
+        if (queue) {
 
-        if (player) {
-
-            player.stop();
+            queue.delete();
 
         }
 
 
-
-        queues.delete(
-            message.guild.id
+        message.reply(
+            "⏹️ Stopped."
         );
-
-
-
-        return message.reply(
-            "⏹️ Music stopped."
-        );
-
 
     }
 
 
 
-    // ============================
     // LEAVE
-    // ============================
-
     if (command === PREFIX + "leave") {
 
-
-        const voiceChannel =
-        message.guild.members.me.voice.channel;
-
+        const queue =
+        player.nodes.get(message.guild.id);
 
 
-        if (!voiceChannel) {
+        if (queue) {
 
-
-            return message.reply(
-                "❌ I am not in a voice channel."
-            );
-
+            queue.delete();
 
         }
 
 
-
-        const connection =
-        voiceChannel.guild.voiceAdapterCreator;
-
-
-
-        const player =
-        players.get(
-            message.guild.id
+        message.reply(
+            "👋 Left voice channel."
         );
-
-
-
-        if (player) {
-
-            player.stop();
-
-        }
-
-
-
-        players.delete(
-            message.guild.id
-        );
-
-
-
-        return message.reply(
-            "👋 Left the voice channel."
-        );
-
 
     }
 
-
-
 });
-
-
 
 // ================================
 // LOGIN
