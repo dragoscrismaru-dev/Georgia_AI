@@ -18,6 +18,7 @@ const {
 
 const Groq = require("groq-sdk");
 const play = require("play-dl");
+const ffmpeg = require("ffmpeg-static");
 
 const PREFIX = "-";
 const OWNER_ID = "1408109679782924308";
@@ -802,6 +803,8 @@ if (
 // PLAY COMMAND
 // ================================
 
+process.env.FFMPEG_PATH = ffmpeg;
+
 client.on(Events.MessageCreate, async message => {
 
 
@@ -926,28 +929,22 @@ client.on(Events.MessageCreate, async message => {
 
 
 
-            const stream =
-            await play.stream(
-
-                search[0].url
-
-            );
+            
+const stream = await play.stream(search[0].url, {
+    discordPlayerCompatibility: true
+});
 
 
 
-            const resource =
-            createAudioResource(
+            const resource = createAudioResource(
+    stream.stream,
+    {
+        inputType: stream.type,
+        inlineVolume: true
+    }
+);
 
-                stream.stream,
-
-                {
-
-                    inputType:
-                    stream.type
-
-                }
-
-            );
+resource.volume.setVolume(0.5);
 
 
 
