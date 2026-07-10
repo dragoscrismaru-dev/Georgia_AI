@@ -17,7 +17,6 @@ const {
 } = require("@discordjs/voice");
 
 const Groq = require("groq-sdk");
-const play = require("play-dl");
 const ffmpeg = require("ffmpeg-static");
 
 process.env.FFMPEG_PATH = ffmpeg;
