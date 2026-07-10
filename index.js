@@ -1040,20 +1040,9 @@ const track = result.track;
         );
 
 
-
-       if (!queue || !queue.currentTrack) {
+if (!queue || !queue.currentTrack) {
     return message.reply("🎵 Queue is empty.");
 }
-
-
-            return message.reply(
-                "🎵 Queue is empty."
-            );
-
-
-        }
-
-
 
         const songs =
         queue.tracks
