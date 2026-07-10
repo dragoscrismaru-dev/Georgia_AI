@@ -12,6 +12,6 @@
     "discord.js": "^14.21.0",
     "dotenv": "^17.2.0",
     "ffmpeg-static": "^5.2.0",
-    "groq-sdk": "^0.30.0",
+    "groq-sdk": "^0.30.0"
   }
 }
