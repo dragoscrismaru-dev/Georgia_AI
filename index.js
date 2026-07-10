@@ -21,11 +21,14 @@ const ffmpeg = require("ffmpeg-static");
 const { Player } = require("discord-player");
 const { DefaultExtractors } = require("@discord-player/extractor");
 
-const player = new Player(client);
+
+const client = new Client({
 
 (async () => {
     await player.extractors.loadMulti(DefaultExtractors);
 })();
+
+
 process.env.FFMPEG_PATH = ffmpeg;
 const PREFIX = "-";
 const OWNER_ID = "1408109679782924308";
@@ -121,7 +124,11 @@ const client = new Client({
     ]
 
 });
+const player = new Player(client);
 
+(async () => {
+    await player.extractors.loadMulti(DefaultExtractors);
+})();
 
 // ================================
 // GROQ AI
