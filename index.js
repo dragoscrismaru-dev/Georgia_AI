@@ -5,6 +5,9 @@ const {
     GatewayIntentBits,
     Partials,
     Events,
+    REST,
+    Routes,
+    SlashCommandBuilder
 } = require("discord.js");
 
 const Groq = require("groq-sdk");
@@ -46,13 +49,29 @@ const memory = new Map();
 const queues = new Map();
 const players = new Map();
 
-// Helper Functions
-function sendLongMessage(channel, text) {
-    if (text.length <= 2000) return channel.send(text);
-    const chunks = text.match(/.{1,1900}/gs) || [];
-    chunks.forEach(chunk => channel.send(chunk));
+// Register Slash Commands
+async function registerCommands() {
+    const commands = [
+        new SlashCommandBuilder().setName('ask').setDescription('Ask the AI a question')
+            .addStringOption(opt => opt.setName('question').setDescription('Your question').setRequired(true)),
+        new SlashCommandBuilder().setName('play').setDescription('Play a song')
+            .addStringOption(opt => opt.setName('song').setDescription('Song name or URL').setRequired(true)),
+        new SlashCommandBuilder().setName('skip').setDescription('Skip current song'),
+        new SlashCommandBuilder().setName('queue').setDescription('Show current queue'),
+        new SlashCommandBuilder().setName('stop').setDescription('Stop music and leave VC'),
+    ];
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+    try {
+        await rest.put(Routes.applicationCommands(client.user.id), { body: commands.map(cmd => cmd.toJSON()) });
+        console.log("✅ Slash commands registered!");
+    } catch (error) {
+        console.error("Failed to register slash commands:", error);
+    }
 }
 
+// Helpers
 function isServerInfoQuery(text) {
     const t = text.toLowerCase();
     return t.includes("what is this server") || /(what|tell|describe|info).*server/i.test(t);
@@ -74,7 +93,7 @@ async function askAI(userId, message) {
     return answer;
 }
 
-// ==================== MUSIC ====================
+// Play Song (Fixed VC Join)
 async function playSong(guild, textChannel) {
     const queue = queues.get(guild.id);
     if (!queue || queue.length === 0) return;
@@ -82,12 +101,10 @@ async function playSong(guild, textChannel) {
     const song = queue[0];
     textChannel.send(`🎵 **Now Playing:** ${song.title}`);
 
-    // Join voice channel
-    const voiceChannel = guild.members.me.voice.channel || textChannel.member.voice.channel;
+    const member = await guild.members.fetch(textChannel.author?.id || textChannel.user?.id).catch(() => null);
+    const voiceChannel = guild.members.me.voice.channel || (member ? member.voice.channel : null);
 
-    if (!voiceChannel) {
-        return textChannel.send("❌ I need to be in a voice channel! Please join one and try again.");
-    }
+    if (!voiceChannel) return textChannel.send("❌ Please join a voice channel first!");
 
     const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
@@ -100,9 +117,7 @@ async function playSong(guild, textChannel) {
 
     let player = players.get(guild.id);
     if (!player) {
-        player = createAudioPlayer({
-            behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
-        });
+        player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
         players.set(guild.id, player);
         connection.subscribe(player);
 
@@ -115,22 +130,18 @@ async function playSong(guild, textChannel) {
     player.play(resource);
 }
 
-// Main Message Handler
+// MessageCreate (Prefix)
 client.on(Events.MessageCreate, async message => {
     if (message.author.bot) return;
 
     const content = message.content.trim();
 
-    // Moderation
     if (BANNED_WORDS.some(word => content.toLowerCase().includes(word))) {
         await message.delete().catch(() => {});
         return message.channel.send(`${message.author}, that word is not allowed.`);
     }
 
-    // Server Info
-    if (isServerInfoQuery(content)) {
-        return message.reply(SERVER_DESCRIPTION);
-    }
+    if (isServerInfoQuery(content)) return message.reply(SERVER_DESCRIPTION);
 
     if (!content.startsWith(PREFIX)) return;
 
@@ -140,45 +151,76 @@ client.on(Events.MessageCreate, async message => {
     const queue = queues.get(message.guild.id) || [];
     queues.set(message.guild.id, queue);
 
-    // Prefix Commands
     if (command === "play") {
         const search = args.join(" ");
-        if (!search) return message.reply("❌ Please provide a song name or URL!");
+        if (!search) return message.reply("❌ Please provide a song!");
 
         const voiceChannel = message.member.voice.channel;
-        if (!voiceChannel) return message.reply("❌ You must be in a voice channel first!");
+        if (!voiceChannel) return message.reply("❌ Join a voice channel first!");
 
         try {
             const result = await play.search(search, { limit: 1 });
-            if (!result[0]) return message.reply("❌ Song not found!");
-
             queue.push({ title: result[0].title, url: result[0].url });
-            message.reply(`✅ **${result[0].title}** added to queue!`);
+            message.reply(`✅ **${result[0].title}** added!`);
 
-            if (queue.length === 1) {
-                playSong(message.guild, message.channel);
-            }
+            if (queue.length === 1) playSong(message.guild, message.channel);
         } catch (e) {
-            console.error(e);
-            message.reply("❌ Failed to find or play the song.");
+            message.reply("❌ Could not find song.");
         }
-    } 
-    else if (command === "skip") {
-        const player = players.get(message.guild.id);
-        if (player) player.stop();
-        message.reply("⏭️ Skipped current song.");
-    } 
-    else if (command === "queue") {
-        message.reply(queue.length ? queue.map((s,i) => `${i+1}. ${s.title}`).join("\n") : "Queue is empty.");
-    } 
-    else if (command === "stop") {
-        const player = players.get(message.guild.id);
-        if (player) player.stop();
-        queues.delete(message.guild.id);
-        players.delete(message.guild.id);
-        message.reply("🛑 Stopped music.");
     }
-    // Add more commands as needed
+});
+
+// Interaction (Slash Commands)
+client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const { commandName } = interaction;
+
+    if (commandName === "ask") {
+        await interaction.deferReply();
+        const reply = await askAI(interaction.user.id, interaction.options.getString("question"));
+        interaction.editReply(reply);
+    }
+
+    if (commandName === "play") {
+        await interaction.deferReply();
+        const search = interaction.options.getString("song");
+        const voiceChannel = interaction.member.voice.channel;
+
+        if (!voiceChannel) return interaction.editReply("❌ Join a voice channel first!");
+
+        try {
+            const result = await play.search(search, { limit: 1 });
+            const queue = queues.get(interaction.guild.id) || [];
+            queue.push({ title: result[0].title, url: result[0].url });
+            queues.set(interaction.guild.id, queue);
+
+            interaction.editReply(`✅ **${result[0].title}** added to queue!`);
+
+            if (queue.length === 1) playSong(interaction.guild, interaction.channel);
+        } catch (e) {
+            interaction.editReply("❌ Could not find that song.");
+        }
+    }
+
+    if (commandName === "skip") {
+        const player = players.get(interaction.guild.id);
+        if (player) player.stop();
+        interaction.reply("⏭️ Skipped.");
+    }
+
+    if (commandName === "stop") {
+        const player = players.get(interaction.guild.id);
+        if (player) player.stop();
+        queues.delete(interaction.guild.id);
+        players.delete(interaction.guild.id);
+        interaction.reply("🛑 Stopped music.");
+    }
+});
+
+client.once(Events.ClientReady, async () => {
+    console.log(`✅ Bot is online as ${client.user.tag}`);
+    await registerCommands();
 });
 
 client.login(process.env.DISCORD_TOKEN);
