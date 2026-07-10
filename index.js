@@ -72,19 +72,11 @@ const client = new Client({
 
 const player = new Player(client);
 
-
 (async () => {
+    await player.extractors.loadDefault();
 
-    await player.extractors.loadMulti(
-        DefaultExtractors
-    );
-
-    console.log(
-        "🎵 Music extractors loaded"
-    );
-
+    console.log("🎵 Music extractors loaded");
 })();
-
 
 // ================================
 // GROQ AI
