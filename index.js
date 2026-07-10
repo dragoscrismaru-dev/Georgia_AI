@@ -380,6 +380,20 @@ client.on(Events.MessageCreate, async message => {
 
     const lower = content.toLowerCase();
 
+// ================================
+// MUSIC PLAYER
+// ================================
+
+const player = new Player(client);
+
+(async () => {
+
+    await player.extractors.load(
+        DefaultExtractors
+    );
+
+})();
+
 // ============================
 // MUSIC DEBUG COMMAND
 // ============================
