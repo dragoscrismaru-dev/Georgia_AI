@@ -1023,6 +1023,7 @@ console.log("PLAYER SAVED");
             );
 
 
+console.log("SEARCH RESULTS:", search.length);
 
             if (!search.length) {
 
@@ -1087,16 +1088,13 @@ resource.volume.setVolume(0.5);
 
         } catch(error) {
 
+    console.error("MUSIC ERROR:", error);
 
-            console.error(error);
+    message.reply(
+        `⚠️ Could not play that song.\n\`${error.message}\``
+    );
 
-
-            message.reply(
-                "⚠️ Could not play that song."
-            );
-
-
-        }
+}
 
 
     }
