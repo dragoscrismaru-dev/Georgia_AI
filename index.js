@@ -270,66 +270,6 @@ async function sendLongMessage(channel, text) {
 
 }
 
-// ============================
-// JARVIS COMMAND LIST REQUEST
-// ============================
-
-if (
-    lower.includes("jarvis") &&
-    (
-        lower.includes("commands") ||
-        lower.includes("command list") ||
-        lower.includes("help")
-    )
-) {
-
-
-    const embed =
-    new EmbedBuilder()
-
-    .setColor("Blue")
-
-    .setTitle("🤖 Jarvis Commands")
-
-    .setDescription(
-        `Prefix: \`${PREFIX}\`\nHere are all my commands.`
-    )
-
-    .addFields(
-
-        {
-            name: "📌 General",
-            value: COMMANDS.general.join("\n")
-        },
-
-        {
-            name: "🎵 Music",
-            value: COMMANDS.music.join("\n")
-        },
-
-        {
-            name: "👑 Owner",
-            value: COMMANDS.owner.join("\n")
-        }
-
-    )
-
-    .setFooter({
-        text:
-        "Georgia State Roleplay • Jarvis AI"
-    });
-
-
-
-    return message.channel.send({
-
-        embeds: [embed]
-
-    });
-
-
-}
-
 // ================================
 // AI FUNCTION
 // ================================
