@@ -134,6 +134,8 @@ const queues = new Map();
 
 const players = new Map();
 
+const cooldowns = new Map();
+
 
 // ================================
 // BOT READY
@@ -268,6 +270,91 @@ async function sendLongMessage(channel, text) {
 
 }
 
+// ============================
+// JARVIS COMMAND LIST REQUEST
+// ============================
+
+if (
+    lower.includes("jarvis") &&
+    (
+        lower.includes("commands") ||
+        lower.includes("command list") ||
+        lower.includes("help")
+    )
+) {
+
+
+    const embed =
+    new EmbedBuilder()
+
+    .setColor("Blue")
+
+    .setTitle("🤖 Jarvis Commands")
+
+    .setDescription(
+        `Prefix: \`${PREFIX}\`\nHere are all my commands.`
+    )
+
+    .addFields(
+
+        {
+            name: "📌 General",
+            value: COMMANDS.general.join("\n")
+        },
+
+        {
+            name: "🎵 Music",
+            value: COMMANDS.music.join("\n")
+        },
+
+        {
+            name: "👑 Owner",
+            value: COMMANDS.owner.join("\n")
+        }
+
+    )
+
+    .setFooter({
+        text:
+        "Georgia State Roleplay • Jarvis AI"
+    });
+
+
+
+    return message.channel.send({
+
+        embeds: [embed]
+
+    });
+
+
+}
+
+// ============================
+// AI COOLDOWN
+// ============================
+
+const cooldownTime = 10000; // 10 seconds
+
+const lastUsed = cooldowns.get(message.author.id);
+
+if (lastUsed && Date.now() - lastUsed < cooldownTime) {
+
+    const remaining = Math.ceil(
+        (cooldownTime - (Date.now() - lastUsed)) / 1000
+    );
+
+    return message.reply(
+        `⏳ Please wait ${remaining} seconds before asking Jarvis again.`
+    );
+
+}
+
+
+cooldowns.set(
+    message.author.id,
+    Date.now()
+);
 
 // ================================
 // AI FUNCTION
