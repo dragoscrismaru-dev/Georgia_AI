@@ -118,10 +118,8 @@ const client = new Client({
 
 });
 
-const player = new Player(client);
-
 (async () => {
-    await player.extractors.loadMulti(DefaultExtractors);
+    await player.extractors.load(DefaultExtractors);
 })();
 
 // ================================
