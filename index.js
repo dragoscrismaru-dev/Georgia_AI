@@ -5,8 +5,6 @@ const {
     GatewayIntentBits,
     Partials,
     Events,
-    REST,
-    Routes
 } = require("discord.js");
 
 const Groq = require("groq-sdk");
@@ -28,7 +26,7 @@ const SERVER_DESCRIPTION = `This is the **Georgia State Roleplay** server, a com
 
 const BANNED_WORDS = [
     "nigger", "nigga", "faggot", "kike", "chink", "spic", "wetback",
-    "retard", "tranny", "coon", "jigaboo", "porchmonkey", "TestN"
+    "retard", "tranny", "coon", "jigaboo", "porchmonkey", "testn"
 ].map(w => w.toLowerCase());
 // ===============================================
 
@@ -48,6 +46,7 @@ const memory = new Map();
 const queues = new Map();
 const players = new Map();
 
+// Helper Functions
 function sendLongMessage(channel, text) {
     if (text.length <= 2000) return channel.send(text);
     const chunks = text.match(/.{1,1900}/gs) || [];
@@ -56,8 +55,7 @@ function sendLongMessage(channel, text) {
 
 function isServerInfoQuery(text) {
     const t = text.toLowerCase();
-    return /(what|tell|describe|info|about).*?(server|this server|discord|community)/i.test(t) ||
-           t.includes("what is this server");
+    return t.includes("what is this server") || /(what|tell|describe|info).*server/i.test(t);
 }
 
 async function askAI(userId, message) {
@@ -76,12 +74,7 @@ async function askAI(userId, message) {
     return answer;
 }
 
-function containsBannedWord(text) {
-    const lower = text.toLowerCase();
-    return BANNED_WORDS.some(word => lower.includes(word));
-}
-
-// Fixed Play Function - Joins VC properly
+// ==================== MUSIC ====================
 async function playSong(guild, textChannel) {
     const queue = queues.get(guild.id);
     if (!queue || queue.length === 0) return;
@@ -89,28 +82,30 @@ async function playSong(guild, textChannel) {
     const song = queue[0];
     textChannel.send(`🎵 **Now Playing:** ${song.title}`);
 
-    const voiceChannel = guild.members.me.voice.channel;
+    // Join voice channel
+    const voiceChannel = guild.members.me.voice.channel || textChannel.member.voice.channel;
+
     if (!voiceChannel) {
-        const userVC = textChannel.guild.members.cache.get(textChannel.author.id)?.voice.channel;
-        if (userVC) {
-            joinVoiceChannel({
-                channelId: userVC.id,
-                guildId: guild.id,
-                adapterCreator: guild.voiceAdapterCreator
-            });
-        } else {
-            return textChannel.send("❌ Please join a voice channel first!");
-        }
+        return textChannel.send("❌ I need to be in a voice channel! Please join one and try again.");
     }
+
+    const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: guild.id,
+        adapterCreator: guild.voiceAdapterCreator
+    });
 
     const stream = await play.stream(song.url);
     const resource = createAudioResource(stream.stream, { inputType: stream.type });
 
     let player = players.get(guild.id);
     if (!player) {
-        player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+        player = createAudioPlayer({
+            behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
+        });
         players.set(guild.id, player);
-        // Subscribe logic...
+        connection.subscribe(player);
+
         player.on(AudioPlayerStatus.Idle, () => {
             queue.shift();
             if (queue.length > 0) playSong(guild, textChannel);
@@ -120,17 +115,19 @@ async function playSong(guild, textChannel) {
     player.play(resource);
 }
 
-// Main Handler (rest of the code remains similar)
+// Main Message Handler
 client.on(Events.MessageCreate, async message => {
     if (message.author.bot) return;
 
     const content = message.content.trim();
 
-    if (containsBannedWord(content)) {
+    // Moderation
+    if (BANNED_WORDS.some(word => content.toLowerCase().includes(word))) {
         await message.delete().catch(() => {});
         return message.channel.send(`${message.author}, that word is not allowed.`);
     }
 
+    // Server Info
     if (isServerInfoQuery(content)) {
         return message.reply(SERVER_DESCRIPTION);
     }
@@ -143,26 +140,45 @@ client.on(Events.MessageCreate, async message => {
     const queue = queues.get(message.guild.id) || [];
     queues.set(message.guild.id, queue);
 
+    // Prefix Commands
     if (command === "play") {
         const search = args.join(" ");
-        if (!search) return message.reply("❌ Please provide a song!");
+        if (!search) return message.reply("❌ Please provide a song name or URL!");
 
-        const voiceChannel = message.member?.voice.channel;
+        const voiceChannel = message.member.voice.channel;
         if (!voiceChannel) return message.reply("❌ You must be in a voice channel first!");
 
         try {
             const result = await play.search(search, { limit: 1 });
-            const song = result[0];
-            queue.push({ title: song.title, url: song.url });
-            message.reply(`✅ Added **${song.title}** to queue!`);
+            if (!result[0]) return message.reply("❌ Song not found!");
 
-            if (queue.length === 1) playSong(message.guild, message.channel);
+            queue.push({ title: result[0].title, url: result[0].url });
+            message.reply(`✅ **${result[0].title}** added to queue!`);
+
+            if (queue.length === 1) {
+                playSong(message.guild, message.channel);
+            }
         } catch (e) {
-            message.reply("❌ Could not find the song.");
+            console.error(e);
+            message.reply("❌ Failed to find or play the song.");
         }
+    } 
+    else if (command === "skip") {
+        const player = players.get(message.guild.id);
+        if (player) player.stop();
+        message.reply("⏭️ Skipped current song.");
+    } 
+    else if (command === "queue") {
+        message.reply(queue.length ? queue.map((s,i) => `${i+1}. ${s.title}`).join("\n") : "Queue is empty.");
+    } 
+    else if (command === "stop") {
+        const player = players.get(message.guild.id);
+        if (player) player.stop();
+        queues.delete(message.guild.id);
+        players.delete(message.guild.id);
+        message.reply("🛑 Stopped music.");
     }
-
-    // Add other commands like skip, queue, stop, etc. as needed
+    // Add more commands as needed
 });
 
 client.login(process.env.DISCORD_TOKEN);
