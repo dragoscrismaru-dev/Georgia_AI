@@ -45,20 +45,19 @@ const memory = new Map();
 const queues = new Map();
 const players = new Map();
 
-// Register All Slash Commands
+// Register Slash Commands
 async function registerCommands() {
     const commands = [
         new SlashCommandBuilder().setName("ask").setDescription("Ask the AI").addStringOption(o => o.setName("question").setDescription("Your question").setRequired(true)),
         new SlashCommandBuilder().setName("play").setDescription("Play a song").addStringOption(o => o.setName("song").setDescription("Song name or URL").setRequired(true)),
         new SlashCommandBuilder().setName("skip").setDescription("Skip current song"),
-        new SlashCommandBuilder().setName("queue").setDescription("Show the queue"),
-        new SlashCommandBuilder().setName("stop").setDescription("Stop music and leave VC"),
-        new SlashCommandBuilder().setName("help").setDescription("Show all commands")
+        new SlashCommandBuilder().setName("queue").setDescription("Show current queue"),
+        new SlashCommandBuilder().setName("stop").setDescription("Stop music and leave VC")
     ];
 
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands.map(c => c.toJSON()) });
-    console.log("✅ All slash commands registered!");
+    console.log("✅ Slash commands registered!");
 }
 
 // AI Function
@@ -67,28 +66,29 @@ async function askAI(userId, message) {
     const history = memory.get(userId);
     history.push({ role: "user", content: message });
 
-    const res = await groq.chat.completions.create({
+    const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [{ role: "system", content: "You are a helpful Discord AI assistant." }, ...history]
     });
 
-    const answer = res.choices[0].message.content;
+    const answer = response.choices[0].message.content;
     history.push({ role: "assistant", content: answer });
-    if (history.length > 25) history.splice(0, 4);
+    if (history.length > 30) history.splice(0, 6);
     return answer;
 }
 
-// Play Song - Fixed VC Join
-async function playSong(guild, channel) {
+// Play Song
+async function playSong(guild, textChannel) {
     const queue = queues.get(guild.id);
     if (!queue || queue.length === 0) return;
 
     const song = queue[0];
-    channel.send(`🎵 **Now Playing:** ${song.title}`);
+    textChannel.send(`🎵 **Now Playing:** ${song.title}`);
 
-    const voiceChannel = guild.members.me.voice.channel || channel.member?.voice.channel;
+    const member = await guild.members.fetch(textChannel.author.id).catch(() => null);
+    const voiceChannel = guild.members.me.voice.channel || (member ? member.voice.channel : null);
 
-    if (!voiceChannel) return channel.send("❌ Please join a voice channel first!");
+    if (!voiceChannel) return textChannel.send("❌ Please join a voice channel!");
 
     const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
@@ -107,26 +107,95 @@ async function playSong(guild, channel) {
 
         player.on(AudioPlayerStatus.Idle, () => {
             queue.shift();
-            if (queue.length > 0) playSong(guild, channel);
+            if (queue.length > 0) playSong(guild, textChannel);
         });
     }
 
     player.play(resource);
 }
 
-// Prefix -help only
+// Main Message Handler (Prefix + Mention)
 client.on(Events.MessageCreate, async message => {
     if (message.author.bot) return;
 
-    const content = message.content.trim().toLowerCase();
+    const content = message.content.trim();
 
-    if (BANNED_WORDS.some(word => content.includes(word))) {
+    // Banned words
+    if (BANNED_WORDS.some(word => content.toLowerCase().includes(word))) {
         await message.delete().catch(() => {});
         return message.channel.send(`${message.author}, that word is not allowed.`);
     }
 
-    if (content === `${PREFIX}help`) {
-        return message.reply("**Commands:** Use `/ask`, `/play`, `/skip`, `/queue`, `/stop`, `/help`");
+    // Server Info
+    if (content.toLowerCase().includes("what is this server")) {
+        return message.reply(SERVER_DESCRIPTION);
+    }
+
+    let question = null;
+
+    // Mention the bot
+    if (message.mentions.has(client.user)) {
+        question = content.replace(`<@${client.user.id}>`, "").trim();
+    }
+    // Prefix commands
+    else if (content.startsWith(PREFIX)) {
+        const args = content.slice(PREFIX.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
+
+        const queue = queues.get(message.guild.id) || [];
+        queues.set(message.guild.id, queue);
+
+        if (command === "help") {
+            return message.reply("**Commands:**\n`-help`, `-play <song>`, `-queue`, `-skip`, `-stop`\nMention me to chat!");
+        }
+
+        if (command === "play") {
+            const search = args.join(" ");
+            if (!search) return message.reply("❌ Please provide a song name!");
+
+            const voiceChannel = message.member.voice.channel;
+            if (!voiceChannel) return message.reply("❌ You must be in a voice channel!");
+
+            try {
+                const result = await play.search(search, { limit: 1 });
+                queue.push({ title: result[0].title, url: result[0].url });
+                message.reply(`✅ **${result[0].title}** added to queue!`);
+
+                if (queue.length === 1) playSong(message.guild, message.channel);
+            } catch (e) {
+                message.reply("❌ Could not find the song.");
+            }
+            return;
+        }
+
+        if (command === "queue") {
+            if (queue.length === 0) return message.reply("🎵 The queue is empty.");
+            const list = queue.map((s, i) => `${i+1}. ${s.title}`).join("\n");
+            return message.reply(`**Current Queue:**\n${list}`);
+        }
+
+        if (command === "skip") {
+            const player = players.get(message.guild.id);
+            if (player) player.stop();
+            return message.reply("⏭️ Skipped current song.");
+        }
+
+        if (command === "stop") {
+            const player = players.get(message.guild.id);
+            if (player) player.stop();
+            queues.delete(message.guild.id);
+            players.delete(message.guild.id);
+            return message.reply("🛑 Stopped music and left the voice channel.");
+        }
+    }
+
+    // AI Chat (Mention or -ask)
+    if (question || content.startsWith(PREFIX + "ask")) {
+        const q = question || content.slice(5).trim();
+        if (!q) return;
+        await message.channel.sendTyping();
+        const reply = await askAI(message.author.id, q);
+        message.reply(reply);
     }
 });
 
@@ -134,53 +203,47 @@ client.on(Events.MessageCreate, async message => {
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName } = interaction;
+    const queue = queues.get(interaction.guild.id) || [];
+    queues.set(interaction.guild.id, queue);
 
-    if (commandName === "help") {
-        return interaction.reply("**Available Commands:**\n`/ask` `/play` `/skip` `/queue` `/stop`");
-    }
-
-    if (commandName === "ask") {
+    if (interaction.commandName === "ask") {
         await interaction.deferReply();
         const reply = await askAI(interaction.user.id, interaction.options.getString("question"));
         interaction.editReply(reply);
     }
 
-    if (commandName === "play") {
+    if (interaction.commandName === "play") {
         await interaction.deferReply();
-        const songName = interaction.options.getString("song");
+        // ... same play logic as prefix
+        const search = interaction.options.getString("song");
         const voiceChannel = interaction.member.voice.channel;
-
-        if (!voiceChannel) return interaction.editReply("❌ You must be in a voice channel!");
+        if (!voiceChannel) return interaction.editReply("❌ Join a voice channel!");
 
         try {
-            const result = await play.search(songName, { limit: 1 });
-            if (!result[0]) return interaction.editReply("❌ Song not found!");
-
-            const queue = queues.get(interaction.guild.id) || [];
+            const result = await play.search(search, { limit: 1 });
             queue.push({ title: result[0].title, url: result[0].url });
-            queues.set(interaction.guild.id, queue);
-
-            interaction.editReply(`✅ **${result[0].title}** added to queue!`);
-
+            interaction.editReply(`✅ **${result[0].title}** added!`);
             if (queue.length === 1) playSong(interaction.guild, interaction.channel);
         } catch (e) {
-            interaction.editReply("❌ Failed to play song.");
+            interaction.editReply("❌ Could not find song.");
         }
     }
 
-    if (commandName === "skip") {
-        const player = players.get(interaction.guild.id);
-        if (player) player.stop();
-        interaction.reply("⏭️ Skipped current song.");
+    if (interaction.commandName === "queue") {
+        if (queue.length === 0) return interaction.reply("Queue is empty.");
+        const list = queue.map((s, i) => `${i+1}. ${s.title}`).join("\n");
+        interaction.reply(`**Current Queue:**\n${list}`);
     }
 
-    if (commandName === "stop") {
+    if (interaction.commandName === "skip" || interaction.commandName === "stop") {
+        // handle skip and stop
         const player = players.get(interaction.guild.id);
         if (player) player.stop();
-        queues.delete(interaction.guild.id);
-        players.delete(interaction.guild.id);
-        interaction.reply("🛑 Stopped music and left VC.");
+        if (interaction.commandName === "stop") {
+            queues.delete(interaction.guild.id);
+            players.delete(interaction.guild.id);
+        }
+        interaction.reply(interaction.commandName === "skip" ? "⏭️ Skipped." : "🛑 Stopped.");
     }
 });
 
