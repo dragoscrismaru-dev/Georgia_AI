@@ -8,26 +8,41 @@ const {
     EmbedBuilder
 } = require("discord.js");
 
-const {
-    joinVoiceChannel,
-    createAudioPlayer,
-    createAudioResource,
-    AudioPlayerStatus,
-    NoSubscriberBehavior
-} = require("@discordjs/voice");
-
 const Groq = require("groq-sdk");
-const ffmpeg = require("ffmpeg-static");
-const { Player } = require("discord-player");
-const { DefaultExtractors } = require("@discord-player/extractor");
 
+const ffmpeg = require("ffmpeg-static");
+
+const {
+    Player
+} = require("discord-player");
+
+const {
+    DefaultExtractors
+} = require("@discord-player/extractor");
+
+
+// ================================
+// FFMPEG
+// ================================
 
 process.env.FFMPEG_PATH = ffmpeg;
+
+
+// ================================
+// CONFIG
+// ================================
+
 const PREFIX = "-";
+
 const OWNER_ID = "1408109679782924308";
 
 
+// ================================
+// FILTER
+// ================================
+
 const BANNED_WORDS = [
+
     "nigger",
     "nigga",
     "faggot",
@@ -38,8 +53,13 @@ const BANNED_WORDS = [
     "retard",
     "tranny",
     "coon"
+
 ].map(word => word.toLowerCase());
 
+
+// ================================
+// SERVER AI INFO
+// ================================
 
 const SERVER_DESCRIPTION = `
 Georgia State Roleplay Discord Server.
@@ -58,31 +78,40 @@ Always be helpful and professional.
 
 
 // ================================
-// COMMAND LIST FOR -HELP
+// COMMAND LIST
 // ================================
 
 const COMMANDS = {
 
     general: [
+
         "`-help` - Shows all commands",
         "`-ping` - Shows bot latency",
         "`-about` - About Jarvis",
         "`-server` - Server information"
+
     ],
 
+
     music: [
-    "`-play <song>` - Play music",
-    "`-addtoqueue <song>` - Add a song to queue",
-    "`-queue` - Show current queue",
-    "`-skip` - Skip song",
-    "`-stop` - Stop music",
-    "`-leave` - Leave voice channel"
-],
+
+        "`-play <song>` - Play music",
+        "`-addtoqueue <song>` - Add song to queue",
+        "`-queue` - Show queue",
+        "`-skip` - Skip song",
+        "`-stop` - Stop music",
+        "`-leave` - Leave voice channel",
+        "`-musicdebug` - Music diagnostics"
+
+    ],
+
 
     owner: [
+
         "`-restart` - Restart Jarvis",
         "`-shutdown` - Shutdown Jarvis",
         "`-say <message>` - Send a message"
+
     ]
 
 };
@@ -118,12 +147,25 @@ const client = new Client({
 
 });
 
-(async () => {
-    await player.extractors.load(DefaultExtractors);
-})();
 
 // ================================
-// GROQ AI
+// DISCORD PLAYER
+// ================================
+
+const player = new Player(client);
+
+
+(async () => {
+
+    await player.extractors.load(
+        DefaultExtractors
+    );
+
+})();
+
+
+// ================================
+// GROQ
 // ================================
 
 const groq = new Groq({
@@ -141,20 +183,22 @@ const memory = new Map();
 
 const queues = new Map();
 
-const players = new Map();
-
-const cooldowns = new Map();
-
 
 // ================================
+// OWNER CHECK
+// ================================
+
+function isOwner(id) {
+
+    return id === OWNER_ID;
+
+}// ================================
 // BOT READY
 // ================================
 
 client.once(Events.ClientReady, () => {
 
-
     console.clear();
-
 
     console.log("===============================");
     console.log("       JARVIS ONLINE");
@@ -171,17 +215,13 @@ client.once(Events.ClientReady, () => {
     console.log("===============================");
 
 
-
     client.user.setPresence({
 
         activities: [
 
             {
-
                 name: "Georgia State RP",
-
                 type: 3
-
             }
 
         ],
@@ -190,38 +230,24 @@ client.once(Events.ClientReady, () => {
 
     });
 
-
 });
 
 
 // ================================
-// OWNER CHECK
-// ================================
-
-function isOwner(id) {
-
-    return id === OWNER_ID;
-
-}
-
-
-// ================================
-// SEND LONG MESSAGES
-// DISCORD 2000 CHARACTER LIMIT
+// SEND LONG MESSAGE
+// DISCORD 2000 LIMIT
 // ================================
 
 async function sendLongMessage(channel, text) {
 
+    const limit = 2000;
 
-    const MAX_LENGTH = 2000;
 
-
-    if (text.length <= MAX_LENGTH) {
+    if (text.length <= limit) {
 
         return channel.send(text);
 
     }
-
 
 
     let chunks = [];
@@ -229,18 +255,12 @@ async function sendLongMessage(channel, text) {
     let current = "";
 
 
-
-    const words = text.split(" ");
-
-
-
-    for (const word of words) {
+    for (const word of text.split(" ")) {
 
 
         if (
-            (current + " " + word).length > MAX_LENGTH
+            (current + " " + word).length > limit
         ) {
-
 
             chunks.push(current);
 
@@ -251,29 +271,23 @@ async function sendLongMessage(channel, text) {
 
 
             current +=
-                (current ? " " : "") + word;
-
+            (current ? " " : "") + word;
 
         }
-
 
     }
 
 
-
-    if (current.length > 0) {
+    if (current) {
 
         chunks.push(current);
 
     }
 
 
-
     for (const chunk of chunks) {
 
-
         await channel.send(chunk);
-
 
     }
 
@@ -287,8 +301,8 @@ async function sendLongMessage(channel, text) {
 async function askAI(userId, prompt) {
 
 
-    let history = memory.get(userId) || [];
-
+    let history =
+    memory.get(userId) || [];
 
 
     history.push({
@@ -300,40 +314,34 @@ async function askAI(userId, prompt) {
     });
 
 
-
     const completion =
-        await groq.chat.completions.create({
+    await groq.chat.completions.create({
+
+        model:
+        "llama-3.3-70b-versatile",
 
 
-            model:
-            "llama-3.3-70b-versatile",
+        messages: [
 
+            {
 
+                role: "system",
 
-            messages: [
+                content:
+                SERVER_DESCRIPTION
 
-                {
+            },
 
-                    role: "system",
+            ...history
 
-                    content: SERVER_DESCRIPTION
+        ]
 
-                },
-
-                ...history
-
-            ]
-
-
-
-        });
-
+    });
 
 
     const reply =
-        completion.choices[0]
-        .message.content;
-
+    completion.choices[0]
+    .message.content;
 
 
     history.push({
@@ -345,158 +353,64 @@ async function askAI(userId, prompt) {
     });
 
 
-
     if (history.length > 20) {
 
         history =
-            history.slice(-20);
+        history.slice(-20);
 
     }
 
 
-
-    memory.set(userId, history);
-
+    memory.set(
+        userId,
+        history
+    );
 
 
     return reply;
 
-
-}
-
- // ================================
-// MESSAGE HANDLER
-// ================================
-
-client.on(Events.MessageCreate, async message => {
-
-
-    if (message.author.bot) return;
-
-
-    const content = message.content.trim();
-
-    const lower = content.toLowerCase();
-
-// ================================
-// MUSIC PLAYER
-// ================================
-
-const player = new Player(client);
-
-(async () => {
-
-    await player.extractors.load(
-        DefaultExtractors
-    );
-
-})();
-
-// ============================
-// MUSIC DEBUG COMMAND
-// ============================
-
-if (lower === PREFIX + "musicdebug") {
-
-    const voice =
-    message.guild.members.me.voice.channel;
-
-
-    const player =
-    players.get(message.guild.id);
-
-
-    return message.reply(
-        [
-            "🎵 Music Debug",
-            `Voice Channel: ${voice ? voice.name : "Not connected"}`,
-            `Player: ${player ? "Created" : "No player"}`,
-            `Guild ID: ${message.guild.id}`,
-            `FFmpeg: ${process.env.FFMPEG_PATH ? "Loaded" : "Missing"}`
-        ].join("\n")
-    );
-
 }
 
 
-// ============================
-// JARVIS HELP REQUEST
-// ============================
+// ================================
+// AI + COMMAND HANDLER
+// ================================
 
-if (
-    lower.includes("jarvis") &&
-    (
-        lower.includes("help") ||
-        lower.includes("commands") ||
-        lower.includes("command list")
-    )
-) {
-
-    const embed = new EmbedBuilder()
-
-    .setColor("Blue")
-
-    .setTitle("🤖 Jarvis Commands")
-
-    .setDescription(
-        `Prefix: \`${PREFIX}\`\nHere are all my commands.`
-    )
-
-    .addFields(
-
-        {
-            name: "📌 General Commands",
-            value: COMMANDS.general.join("\n")
-        },
-
-        {
-            name: "🎵 Music Commands",
-            value: COMMANDS.music.join("\n")
-        },
-
-        {
-            name: "👑 Owner Commands",
-            value: COMMANDS.owner.join("\n")
-        }
-
-    )
-
-    .setFooter({
-        text: "Georgia State Roleplay • Jarvis AI"
-    });
+client.on(
+Events.MessageCreate,
+async message => {
 
 
-    return message.channel.send({
-        embeds: [embed]
-    });
+    if (message.author.bot)
+        return;
 
-}
+
+    const content =
+    message.content.trim();
+
+
+    const lower =
+    content.toLowerCase();
 
 
 
     // ============================
-    // BAD WORD FILTER
+    // WORD FILTER
     // ============================
 
     if (
         BANNED_WORDS.some(word =>
-            lower.includes(word)
-        )
+        lower.includes(word))
     ) {
 
 
         await message.delete()
-            .catch(() => {});
+        .catch(() => {});
 
 
-
-        return message.channel.send({
-
-            content:
-            `${message.author}, that word is not allowed.`
-
-        });
-
+        return message.reply(
+            "That word is not allowed."
+        );
 
     }
 
@@ -509,60 +423,46 @@ if (
     if (lower === PREFIX + "help") {
 
 
-
         const embed =
         new EmbedBuilder()
 
-
         .setColor("Blue")
 
-
-        .setTitle("🤖 Jarvis Commands")
-
-
-        .setDescription(
-
-            `Prefix: \`${PREFIX}\`\n` +
-            "All available Jarvis commands."
-
+        .setTitle(
+            "🤖 Jarvis Commands"
         )
 
+        .setDescription(
+            `Prefix: \`${PREFIX}\``
+        )
 
         .addFields(
 
-
             {
-
                 name:
-                "📌 General Commands",
+                "📌 General",
 
                 value:
                 COMMANDS.general.join("\n")
-
             },
 
 
             {
-
                 name:
-                "🎵 Music Commands",
+                "🎵 Music",
 
                 value:
                 COMMANDS.music.join("\n")
-
             },
 
 
             {
-
                 name:
-                "👑 Owner Commands",
+                "👑 Owner",
 
                 value:
                 COMMANDS.owner.join("\n")
-
             }
-
 
         )
 
@@ -570,10 +470,9 @@ if (
         .setFooter({
 
             text:
-            "Georgia State Roleplay • Jarvis AI"
+            "Georgia State Roleplay • Jarvis"
 
         });
-
 
 
         return message.channel.send({
@@ -583,87 +482,105 @@ if (
 
         });
 
+    }
+
+
+
+    // ============================
+    // JARVIS COMMAND REQUEST
+    // ============================
+
+    if (
+
+        lower.includes("jarvis")
+
+        &&
+
+        (
+
+            lower.includes("help")
+
+            ||
+
+            lower.includes("commands")
+
+            ||
+
+            lower.includes("command list")
+
+        )
+
+    ) {
+
+
+        return message.channel.send({
+
+            embeds:[
+
+                new EmbedBuilder()
+
+                .setColor("Blue")
+
+                .setTitle(
+                    "🤖 Jarvis Commands"
+                )
+
+                .setDescription(
+                    `Use \`${PREFIX}help\` to see commands.`
+                )
+
+            ]
+
+        });
 
     }
 
 
 
     // ============================
-    // PING
+    // BASIC COMMANDS
     // ============================
 
     if (lower === PREFIX + "ping") {
 
-
         return message.reply(
-
             `🏓 Pong! ${client.ws.ping}ms`
-
         );
-
 
     }
 
 
-
-    // ============================
-    // ABOUT
-    // ============================
 
     if (lower === PREFIX + "about") {
 
-
         return message.reply(
-
             "🤖 I am Jarvis, the official AI assistant for Georgia State Roleplay."
-
         );
-
 
     }
 
 
-
-    // ============================
-    // SERVER INFO
-    // ============================
 
     if (lower === PREFIX + "server") {
 
-
         return sendLongMessage(
-
             message.channel,
-
             SERVER_DESCRIPTION
-
         );
 
+    }// ================================
+// OWNER COMMANDS
+// ================================
 
-    }
-
-
-
-    // ============================
-    // OWNER RESTART
-    // ============================
-
-    if (lower.startsWith(
-        PREFIX + "restart"
-    )) {
-
-
+    if (lower.startsWith(PREFIX + "restart")) {
 
         if (!isOwner(message.author.id)) {
-
 
             return message.reply(
                 "⛔ Owner only."
             );
 
-
         }
-
 
 
         await message.reply(
@@ -671,35 +588,21 @@ if (
         );
 
 
-
         process.exit(0);
-
-
 
     }
 
 
 
-    // ============================
-    // OWNER SHUTDOWN
-    // ============================
-
-    if (lower.startsWith(
-        PREFIX + "shutdown"
-    )) {
-
-
+    if (lower.startsWith(PREFIX + "shutdown")) {
 
         if (!isOwner(message.author.id)) {
-
 
             return message.reply(
                 "⛔ Owner only."
             );
 
-
         }
-
 
 
         await message.reply(
@@ -707,53 +610,35 @@ if (
         );
 
 
-
         process.exit(0);
-
-
 
     }
 
 
 
-    // ============================
-    // OWNER SAY
-    // ============================
-
-    if (lower.startsWith(
-        PREFIX + "say "
-    )) {
-
+    if (lower.startsWith(PREFIX + "say ")) {
 
 
         if (!isOwner(message.author.id)) {
-
 
             return message.reply(
                 "⛔ Owner only."
             );
 
-
         }
-
 
 
         const msg =
         content.slice(5);
 
 
-
         await message.delete()
         .catch(() => {});
 
 
-
         return message.channel.send(msg);
 
-
-
     }
-
 
 
 
@@ -772,7 +657,6 @@ if (
     ) {
 
 
-
         const question =
         content
 
@@ -786,110 +670,125 @@ if (
         .trim();
 
 
-
-        if (!question.length)
+        if (!question)
             return;
-
 
 
         await message.channel.sendTyping();
 
 
-
         try {
-
 
 
             const reply =
             await askAI(
-
                 message.author.id,
-
                 question
-
             );
-
 
 
             await sendLongMessage(
-
                 message.channel,
-
                 reply
-
             );
 
 
-
-        } catch (error) {
-
+        } catch(error) {
 
 
             console.error(error);
 
 
-
             message.reply(
-
-                "⚠️ The AI is currently unavailable."
-
+                "⚠️ AI unavailable."
             );
-
 
 
         }
 
-
-
     }
 
 
-
 });
+
 
 // ================================
 // MUSIC SYSTEM
 // ================================
 
-client.on(Events.MessageCreate, async message => {
-
-    if (message.author.bot) return;
-
-    const args = message.content.trim().split(" ");
-    const command = args[0].toLowerCase();
+client.on(
+Events.MessageCreate,
+async message => {
 
 
+    if (message.author.bot)
+        return;
+
+
+    const args =
+    message.content.trim()
+    .split(" ");
+
+
+    const command =
+    args[0].toLowerCase();
+
+
+
+    // ============================
     // PLAY
+    // ============================
+
     if (command === PREFIX + "play") {
 
-        const query = args.slice(1).join(" ");
 
-        if (!query) {
-            return message.reply(
-                "❌ Give me a song name."
-            );
-        }
+        const voice =
+        message.member.voice.channel;
 
 
-        const voiceChannel = message.member.voice.channel;
+        if (!voice) {
 
-        if (!voiceChannel) {
             return message.reply(
                 "🎤 Join a voice channel first."
             );
+
+        }
+
+
+        const query =
+        args.slice(1).join(" ");
+
+
+        if (!query) {
+
+            return message.reply(
+                "❌ Give me a song name."
+            );
+
         }
 
 
         try {
 
-            const { track } = await player.play(
-                voiceChannel,
+
+            const { track } =
+            await player.play(
+
+                voice,
+
                 query,
+
                 {
+
                     nodeOptions: {
-                        metadata: message.channel
+
+                        metadata:
+                        message.channel
+
                     }
+
                 }
+
             );
 
 
@@ -898,9 +797,14 @@ client.on(Events.MessageCreate, async message => {
             );
 
 
-        } catch (error) {
+        } catch(error) {
 
-            console.error("MUSIC ERROR:", error);
+
+            console.error(
+                "MUSIC ERROR:",
+                error
+            );
+
 
             message.reply(
                 "⚠️ Could not play that song."
@@ -912,14 +816,20 @@ client.on(Events.MessageCreate, async message => {
 
 
 
+    // ============================
     // QUEUE
+    // ============================
+
     if (command === PREFIX + "queue") {
 
+
         const queue =
-        player.nodes.get(message.guild.id);
+        player.nodes.get(
+            message.guild.id
+        );
 
 
-        if (!queue || !queue.tracks.size) {
+        if (!queue) {
 
             return message.reply(
                 "🎵 Queue is empty."
@@ -928,8 +838,9 @@ client.on(Events.MessageCreate, async message => {
         }
 
 
-        const songs =
-        queue.tracks.toArray()
+        const tracks =
+        queue.tracks
+        .toArray()
         .map(
             (song, i) =>
             `${i + 1}. ${song.title}`
@@ -937,19 +848,25 @@ client.on(Events.MessageCreate, async message => {
         .join("\n");
 
 
-        message.channel.send(
-            `🎵 **Queue**\n${songs}`
+        return message.channel.send(
+            `🎵 **Queue**\n${tracks}`
         );
 
     }
 
 
 
+    // ============================
     // SKIP
+    // ============================
+
     if (command === PREFIX + "skip") {
 
+
         const queue =
-        player.nodes.get(message.guild.id);
+        player.nodes.get(
+            message.guild.id
+        );
 
 
         if (!queue) {
@@ -964,7 +881,7 @@ client.on(Events.MessageCreate, async message => {
         queue.node.skip();
 
 
-        message.reply(
+        return message.reply(
             "⏭️ Skipped."
         );
 
@@ -972,11 +889,17 @@ client.on(Events.MessageCreate, async message => {
 
 
 
+    // ============================
     // STOP
+    // ============================
+
     if (command === PREFIX + "stop") {
 
+
         const queue =
-        player.nodes.get(message.guild.id);
+        player.nodes.get(
+            message.guild.id
+        );
 
 
         if (queue) {
@@ -986,7 +909,7 @@ client.on(Events.MessageCreate, async message => {
         }
 
 
-        message.reply(
+        return message.reply(
             "⏹️ Stopped."
         );
 
@@ -994,11 +917,17 @@ client.on(Events.MessageCreate, async message => {
 
 
 
+    // ============================
     // LEAVE
+    // ============================
+
     if (command === PREFIX + "leave") {
 
+
         const queue =
-        player.nodes.get(message.guild.id);
+        player.nodes.get(
+            message.guild.id
+        );
 
 
         if (queue) {
@@ -1008,18 +937,66 @@ client.on(Events.MessageCreate, async message => {
         }
 
 
-        message.reply(
+        return message.reply(
             "👋 Left voice channel."
         );
 
     }
 
+
+
+    // ============================
+    // MUSIC DEBUG
+    // ============================
+
+    if (command === PREFIX + "musicdebug") {
+
+
+        const voice =
+        message.guild.members.me.voice.channel;
+
+
+        const queue =
+        player.nodes.get(
+            message.guild.id
+        );
+
+
+        return message.reply(
+
+            [
+                "🎵 Music Debug",
+
+                `Voice Channel: ${
+                    voice
+                    ? voice.name
+                    : "Not connected"
+                }`,
+
+                `Player: ${
+                    queue
+                    ? "Created"
+                    : "No player"
+                }`,
+
+                `Guild ID: ${
+                    message.guild.id
+                }`,
+
+                `FFmpeg: Loaded`
+
+            ].join("\n")
+
+        );
+
+    }
+
+
 });
+
 
 // ================================
 // LOGIN
 // ================================
 
-client.login(
-    process.env.DISCORD_TOKEN
-);
+client.login(process.env.DISCORD_TOKEN);
