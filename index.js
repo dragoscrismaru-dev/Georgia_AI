@@ -202,58 +202,36 @@ function isOwner(id) {
 // LONG MESSAGE SENDER
 // ================================
 
-async function sendLongMessage(
-    channel,
-    text
-) {
+async function sendLongMessage(channel, text) {
 
+    const MAX_LENGTH = 2000;
 
-    const limit = 2000;
-
-
-    if (text.length <= limit) {
-
+    if (text.length <= MAX_LENGTH) {
         return channel.send(text);
-
     }
 
-
     let chunks = [];
-
     let current = "";
 
+    const words = text.split(" ");
 
-    for (const word of text.split(" ")) {
+    for (const word of words) {
 
-
-        if (
-            (current + " " + word).length
-            > limit
-        ) {
-
+        if ((current + " " + word).length > MAX_LENGTH) {
 
             chunks.push(current);
-
             current = word;
-
 
         } else {
 
-
-            current +=
-            (current ? " " : "")
-            + word;
-
+            current += (current ? " " : "") + word;
 
         }
 
     }
 
-
-    if (current) {
-
+    if (current.length > 0) {
         chunks.push(current);
-
     }
 
 
@@ -263,8 +241,8 @@ async function sendLongMessage(
 
     }
 
-
 }
+
 // ================================
 // AI FUNCTION
 // ================================
