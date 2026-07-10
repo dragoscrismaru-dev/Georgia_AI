@@ -330,32 +330,6 @@ if (
 
 }
 
-// ============================
-// AI COOLDOWN
-// ============================
-
-const cooldownTime = 10000; // 10 seconds
-
-const lastUsed = cooldowns.get(message.author.id);
-
-if (lastUsed && Date.now() - lastUsed < cooldownTime) {
-
-    const remaining = Math.ceil(
-        (cooldownTime - (Date.now() - lastUsed)) / 1000
-    );
-
-    return message.reply(
-        `⏳ Please wait ${remaining} seconds before asking Jarvis again.`
-    );
-
-}
-
-
-cooldowns.set(
-    message.author.id,
-    Date.now()
-);
-
 // ================================
 // AI FUNCTION
 // ================================
