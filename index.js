@@ -856,6 +856,7 @@ client.on(Events.MessageCreate, async message => {
     // ============================
 
     if (command === PREFIX + "play") {
+console.log("PLAY COMMAND USED");
 
 
         const voiceChannel =
@@ -906,7 +907,7 @@ client.on(Events.MessageCreate, async message => {
             });
 
 
-
+console.log("CREATING PLAYER");
             const player =
             createAudioPlayer({
 
@@ -928,6 +929,7 @@ client.on(Events.MessageCreate, async message => {
                 player
 
             );
+console.log("PLAYER SAVED");
 
 
 
